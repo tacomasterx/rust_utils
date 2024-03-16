@@ -1,6 +1,5 @@
 // use super::cli;
-use std::/* {io::{stdout, Write}, thread::{self, JoinHandle}, */ time::Instant;//};
-
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};//};
 
 pub struct Timer {
     hours: usize,
@@ -190,7 +189,6 @@ pub struct PreciseTimer {
 }
 
 impl PreciseTimer {
-    // add code here
     pub fn get_seconds(&self) -> f64{
         match self.count {
             CountType::Up => {( self.starting_micros + self.elapsed_micros ) as f64 / 1_000_000.0},
@@ -254,10 +252,27 @@ impl PreciseTimer {
         }
     }
 
+    pub fn now(count: CountType) -> PreciseTimer {
+        let systime = SystemTime::now();
+        let systime: Duration = match systime.duration_since(UNIX_EPOCH) {
+            Ok(duration) => {duration},
+            Err(error) => {
+                println!("Timer error: {error}");
+                Duration::from_millis(0)
+            },
+        };
+        PreciseTimer {
+            starting_micros: systime.as_micros(),
+            elapsed_micros: 0,
+            count,
+        }
+    }
+
     pub fn tick(&mut self, instant: &Instant) {
         let elapsed = instant.elapsed().as_micros();
         self.elapsed_micros = elapsed;
     }
+
     pub fn display_format_line(& self, line_number: u8, display_type: &Type) {
         if line_number > 14 {
             panic!("Line out of bounds!")
@@ -295,6 +310,7 @@ impl PreciseTimer {
 
     pub fn text_render(&self) -> String {
         let (hours, minutes, seconds) = self.get_digits();
+        let milliseconds = self.get_millis();
         let hours = match hours > 9 as u8 {
             true => format!("{}", hours ),
             false => format!("0{}", hours),
@@ -307,10 +323,12 @@ impl PreciseTimer {
             true => format!("{}", seconds ),
             false => format!("0{}", seconds),
         };
-
-        format!("[{}:{}:{}]", hours, minutes, seconds)
+        let mut milli_string: String = String::from("000");
+        if milliseconds > 99 { milli_string = format!("{}", milliseconds); }
+        if milliseconds > 9 { milli_string = format!("0{}", milliseconds); }
+        if milliseconds < 10 { milli_string = format!("00{}", milliseconds); }
+        format!("[{}:{}:{}:{}]", hours, minutes, seconds, milli_string)
     }
-
 
 }
 
@@ -545,12 +563,24 @@ pub fn display_digit_render<'b>(value: u8) -> [[&'b str;3];15] {
 
 pub fn binary_conversion(value: usize) -> [u8;10] {
     const TWO: usize = 2;
-    let mut bits = [0;10];
+    let mut bits: [u8;10] = [0;10];
     let mut buffer: usize = value;
     for i in ( 0..10 ).rev() {
         let bit_value = TWO.pow(i as u32);
         bits[i] = ( buffer / bit_value ) as u8;
         buffer = buffer % bit_value;
     }
-    bits
+    bits.reverse();
+        bits
 }
+
+#[derive(Debug)]
+pub enum TimerAction {
+    PauseResume,
+    Stop,
+}
+
+// pub struct Spawner {
+//     timer_thread: Option<JoinHandle<()>>,
+//     sender: Sender<TimerAction>,
+// }
